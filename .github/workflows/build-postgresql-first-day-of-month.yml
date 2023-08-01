@@ -6,40 +6,31 @@ permissions:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        hour: [0, 4, 8, 12, 16, 20, 24]
     runs-on: ubuntu-20.04
 
     env:
+        TZ: Asia/Kolkata
         GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
     steps:
+      - name: Generate last day of the month
+        run: |
+          DATE=`date -d "$(date +%Y-%m-01) +1 month -1 day + ${{ matrix.hour }} hours" "+%s"`
+          echo "System clock will be set back to the last day of the current month: `date -d @$DATE`"
+          echo "SYSTEM_DATE=$DATE" >> "$GITHUB_ENV"
       - name: Start Postgres
-        run: | 
-          docker run --cap-add SYS_TIME --name postgresql -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=postgres -d postgres:15.3 --health-cmd="pg_isready -q -d postgres -U root" --health-interval=5s --health-timeout=2s --health-retries=3
-          docker exec postgresql date -s @1690860000
-          docker ps
+        run: |
+          docker run --cap-add SYS_TIME --name postgresql -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=postgres --health-cmd="pg_isready -q -d postgres -U root" --health-interval=5s --health-timeout=2s --health-retries=3 -d postgres:15.3
+          docker exec postgresql date -s @${{ env.SYSTEM_DATE }}
       - name: Checkout
         uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # tag=v3
-      - name: Set up JDK 17
-        uses: actions/setup-java@cd89f46ac9d01407894225f350157564c9c7cee2 # v3
-        with:
-          java-version: '17'
-          distribution: 'zulu'
-          cache: gradle
-      - uses: actions/setup-node@e33196f7422957bea03ed53f6fbb155025ffc7b8 # tag=v3
-        with:
-          node-version: 16
-      - name: Congfigure vega-cli
-        run: npm i -g vega-cli --unsafe
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@56b90f209b02bf6d1deae490e9ef18b21a389cd4
       - name: Verify PostgreSQL connection
         run: |
             while ! pg_isready -d postgres -U root -h 127.0.0.1 -p 5432 ; do
                 sleep 1
             done
-      - name: Initialise databases
-        run: |
-            ./gradlew --no-daemon -q createPGDB -PdbName=fineract_tenants
-            ./gradlew --no-daemon -q createPGDB -PdbName=fineract_default
       - name: Start LocalStack
         env:
           AWS_ENDPOINT_URL: http://localhost:4566
@@ -49,8 +40,8 @@ jobs:
         run: |
           docker run -d --name localstack --cap-add SYS_TIME -p 4566:4566 -p 4510-4559:4510-4559 localstack/localstack:2.1
           sleep 10
+          docker exec localstack date -s @${{ env.SYSTEM_DATE }}
           docker exec localstack awslocal s3api create-bucket --bucket fineract-reports
-          docker exec localstack date -s @1690860000
           echo "LocalStack initialization complete"
       - name: Build & Test
         env:
@@ -61,8 +52,8 @@ jobs:
           FINERACT_REPORT_EXPORT_S3_ENABLED: true
           FINERACT_REPORT_EXPORT_S3_BUCKET_NAME: fineract-reports
         run: |
-            ./gradlew --no-daemon --console=plain test -x :twofactor-tests:test -x :oauth2-test:test -PdbType=postgresql
-
+          docker run --cap-add SYS_TIME -v /home/runner/work/fineract/fineract:/home/runner/work/fineract/fineract -e TZ=Asia/Kolkata --network host openjdk:17-alpine sh -c "date -s @${{ env.SYSTEM_DATE }} && cd /home/runner/work/fineract/fineract && ./gradlew --no-daemon --console=plain createPGDB -PdbName=fineract_tenants && ./gradlew --no-daemon --console=plain createPGDB -PdbName=fineract_default"
+          docker run --cap-add SYS_TIME -v /home/runner/work/fineract/fineract:/home/runner/work/fineract/fineract -e TZ=Asia/Kolkata --network host openjdk:17-alpine sh -c "date -s @${{ env.SYSTEM_DATE }} && cd /home/runner/work/fineract/fineract && ./gradlew --no-daemon --console=plain bootJar :integration-tests:test -PdbType=postgresql"
       - name: Archive test results
         if: always()
         uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # tag=v3
@@ -70,7 +61,6 @@ jobs:
           name: test-results
           path: |
             integration-tests/build/reports/
-
       - name: Archive server logs
         if: always()
         uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # tag=v3

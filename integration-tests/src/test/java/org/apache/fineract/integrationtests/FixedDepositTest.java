@@ -66,9 +66,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 @Slf4j
 @SuppressWarnings({ "unused", "unchecked", "rawtypes", "static-access" })
+@ExtendWith(FineractLoggingExtension.class)
 public class FixedDepositTest {
 
     private ResponseSpecification responseSpec;
@@ -318,10 +320,16 @@ public class FixedDepositTest {
         final Account expenseAccount = this.accountHelper.createExpenseAccount();
         final Account liabilityAccount = this.accountHelper.createLiabilityAccount();
         final Account liabilityAccountForTax = this.accountHelper.createLiabilityAccount();
+        log.info("ENV: {}", System.getenv().get("TZ"));
+        log.info("The default timezone is: {}", TimeZone.getDefault());
+        // TimeZone timeZone = TimeZone.getTimeZone("Asia/Kolkata");
 
         DateFormat dateFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.US);
+        // dateFormat.setTimeZone(timeZone);
         DateFormat monthDayFormat = new SimpleDateFormat("dd MMM", Locale.US);
+        // monthDayFormat.setTimeZone(timeZone);
         DateFormat currentDateFormat = new SimpleDateFormat("dd");
+        // monthDayFormat.setTimeZone(timeZone);
 
         Calendar todaysDate = Calendar.getInstance();
         todaysDate.add(Calendar.MONTH, -3);
@@ -329,18 +337,26 @@ public class FixedDepositTest {
         todaysDate.add(Calendar.YEAR, 10);
         final String VALID_TO = dateFormat.format(todaysDate.getTime());
 
-        todaysDate = Calendar.getInstance();
-        todaysDate.add(Calendar.MONTH, -1);
+        todaysDate = Calendar.getInstance(); // current time in UTC is 2023-07-31 20:00, in Asia/Kolkata it is
+                                             // 2023-08-01 00:30
+        todaysDate.add(Calendar.MONTH, -1); // account will be opened one month earlier compared to the current date,
+                                            // 2023.07.01 in Asia/Kolkata
         final String SUBMITTED_ON_DATE = dateFormat.format(todaysDate.getTime());
         final String APPROVED_ON_DATE = dateFormat.format(todaysDate.getTime());
         final String ACTIVATION_DATE = dateFormat.format(todaysDate.getTime());
         monthDayFormat.format(todaysDate.getTime());
 
-        Integer currentDate = Integer.valueOf(currentDateFormat.format(todaysDate.getTime()));
-        Integer daysInMonth = todaysDate.getActualMaximum(Calendar.DATE);
-        Integer numberOfDaysLeft = daysInMonth - currentDate + 1;
-        todaysDate.add(Calendar.DATE, numberOfDaysLeft);
-        final String INTEREST_POSTED_DATE = dateFormat.format(todaysDate.getTime());
+        // Integer currentDate = Integer.valueOf(currentDateFormat.format(todaysDate.getTime()));
+        // Integer daysInMonth = todaysDate.getActualMaximum(Calendar.DATE);
+        // Integer numberOfDaysLeft = daysInMonth - currentDate + 1;
+        // todaysDate.add(Calendar.DATE, numberOfDaysLeft);
+        // final String INTEREST_POSTED_DATE = dateFormat.format(todaysDate.getTime());
+
+        Calendar firstDayOfNextMonth = (Calendar) todaysDate.clone();
+        firstDayOfNextMonth.add(Calendar.MONTH, 1);
+        firstDayOfNextMonth.set(Calendar.DATE, 1);
+        final String INTEREST_POSTED_DATE = dateFormat.format(firstDayOfNextMonth.getTime());
+
         final String CLOSED_ON_DATE = dateFormat.format(Calendar.getInstance().getTime());
 
         Integer clientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
@@ -409,8 +425,11 @@ public class FixedDepositTest {
         /***
          * Verify journal entries transactions for interest posting transaction
          */
+        log.info("Total interests posted: {}", totalInterestPosted);
+
         final JournalEntry[] expenseAccountEntry = { new JournalEntry(totalInterestPosted, JournalEntry.TransactionType.DEBIT) };
         final JournalEntry[] liablilityAccountEntry = { new JournalEntry(totalInterestPosted, JournalEntry.TransactionType.CREDIT) };
+        log.info("INTEREST_POSTED_DATE {}", INTEREST_POSTED_DATE);
         this.journalEntryHelper.checkJournalEntryForAssetAccount(expenseAccount, INTEREST_POSTED_DATE, expenseAccountEntry);
         this.journalEntryHelper.checkJournalEntryForLiabilityAccount(liabilityAccount, INTEREST_POSTED_DATE, liablilityAccountEntry);
 
