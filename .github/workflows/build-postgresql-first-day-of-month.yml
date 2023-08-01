@@ -11,14 +11,11 @@ jobs:
     env:
         GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
     steps:
-      - name: Reset local time
-        uses: ajilraju/actions-date@v0.1
-        with:
-          date --set @1690860000
       - name: Start Postgres
         run: | 
           docker run --cap-add SYS_TIME --name postgresql -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=postgres -d postgres:15.3 --health-cmd="pg_isready -q -d postgres -U root" --health-interval=5s --health-timeout=2s --health-retries=3
           docker exec postgresql date -s @1690860000
+          docker ps
       - name: Checkout
         uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # tag=v3
       - name: Set up JDK 17
