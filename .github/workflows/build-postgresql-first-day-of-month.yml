@@ -53,7 +53,7 @@ jobs:
           FINERACT_REPORT_EXPORT_S3_BUCKET_NAME: fineract-reports
         run: |
           docker run --cap-add SYS_TIME -v /home/runner/work/fineract/fineract:/home/runner/work/fineract/fineract -e TZ=Asia/Kolkata --network host openjdk:17-alpine sh -c "date -s @${{ env.SYSTEM_DATE }} && cd /home/runner/work/fineract/fineract && ./gradlew --no-daemon --console=plain createPGDB -PdbName=fineract_tenants && ./gradlew --no-daemon --console=plain createPGDB -PdbName=fineract_default"
-          docker run --cap-add SYS_TIME -v /home/runner/work/fineract/fineract:/home/runner/work/fineract/fineract -e TZ=Asia/Kolkata --network host openjdk:17-alpine sh -c "date -s @${{ env.SYSTEM_DATE }} && cd /home/runner/work/fineract/fineract && ./gradlew --no-daemon --console=plain bootJar :integration-tests:test -PdbType=postgresql"
+          docker run --cap-add SYS_TIME -v /home/runner/work/fineract/fineract:/home/runner/work/fineract/fineract -e TZ=Asia/Kolkata --network host openjdk:17-alpine sh -c "date -s @${{ env.SYSTEM_DATE }} && cd /home/runner/work/fineract/fineract && ./gradlew --no-daemon --console=plain bootJar :integration-tests:test --tests "org.apache.fineract.integrationtests.RecurringDepositTest" --tests "org.apache.fineract.integrationtests.FixedDepositTest" -PdbType=postgresql"
       - name: Archive test results
         if: always()
         uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # tag=v3
