@@ -8,7 +8,7 @@ jobs:
   build:
     strategy:
       matrix:
-        hour: [0, 4, 8, 12, 16, 20, 24]
+        hour: [12, 16, 20, 24, 28, 32, 36]
     runs-on: ubuntu-20.04
 
     env:
@@ -60,11 +60,11 @@ jobs:
         with:
           name: test-results
           path: |
-            integration-tests/build/reports/
+            integration-tests/build/reports/${{ matrix.hour }}
       - name: Archive server logs
         if: always()
         uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # tag=v3
         with:
           name: server-logs
           path: |
-            integration-tests/build/cargo/
+            integration-tests/build/cargo/${{ matrix.hour }}
