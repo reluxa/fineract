@@ -20,12 +20,16 @@ package org.apache.fineract.infrastructure.core.exceptionmapper;
 
 import static org.apache.fineract.infrastructure.core.exception.AbstractIdempotentCommandException.IDEMPOTENT_CACHE_HEADER;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.exception.AbstractIdempotentCommandException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessFailedException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessSucceedException;
@@ -57,8 +61,23 @@ public class IdempotentCommandExceptionMapper implements FineractExceptionMapper
         if (status == null) {
             status = Status.INTERNAL_SERVER_ERROR;
         }
-        return Response.status(status).entity(exception.getResponse()).header(IDEMPOTENT_CACHE_HEADER, "true")
-                .type(MediaType.APPLICATION_JSON).build();
+
+        Response.ResponseBuilder responseBuilder = Response.status(status).header(IDEMPOTENT_CACHE_HEADER, "true")
+                .type(MediaType.APPLICATION_JSON);
+        return addEntity(responseBuilder, exception.getResponse()).build();
+    }
+
+    private Response.ResponseBuilder addEntity(Response.ResponseBuilder responseBuilder, String response) {
+        if (StringUtils.isNotEmpty(response)) {
+            try {
+                java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>() {}.getType();
+                Map<String, Object> entity = new Gson().fromJson(response, mapType);
+                responseBuilder.entity(entity);
+            } catch (Exception e) {
+                responseBuilder.entity(response);
+            }
+        }
+        return responseBuilder;
     }
 
     @Override
